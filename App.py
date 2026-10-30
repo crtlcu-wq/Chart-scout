@@ -1,0 +1,109 @@
+import streamlit as st
+import pandas as pd
+import yfinance as yf
+import warnings
+
+# Configurazione della pagina ottimizzata per mobile
+st.set_page_config(
+    page_title="Chart Scout MIB",
+    page_icon="🎯",
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
+
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
+# Lista completa dei titoli del FTSE MIB
+tickers = [
+    "A2A.MI", "AMP.MI", "AZM.MI", "BGN.MI", "BMED.MI", "BMPS.MI", "BAMI.MI", 
+    "BPE.MI", "CPR.MI", "DIA.MI", "ENEL.MI", "ENI.MI", "ERG.MI", "RACE.MI", 
+    "REC.MI", "G.MI", "HER.MI", "ISP.MI", "INW.MI", "IG.MI", "LDO.MI", 
+    "MB.MI", "MONC.MI", "NEXI.MI", "PIRC.MI", "PST.MI", "PRY.MI", "SPM.MI", 
+    "SRG.MI", "STLAM.MI", "STM.MI", "TIT.MI", "TEN.MI", "TRN.MI", "UCG.MI", 
+    "UNI.MI", "IVG.MI"
+]
+
+def pulisci_colonne(df):
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    return df
+
+def calcola_score_macro(df):
+    df = pulisci_colonne(df)
+    if df is None or len(df) < 200:
+        return 0.0
+    df = df.dropna(subset=['Close'])
+    mm9 = float(df['Close'].rolling(window=9).mean().iloc[-1])
+    mm20 = float(df['Close'].rolling(window=20).mean().iloc[-1])
+    mm50 = float(df['Close'].rolling(window=50).mean().iloc[-1])
+    mm100 = float(df['Close'].rolling(window=100).mean().iloc[-1])
+    mm200 = float(df['Close'].rolling(window=200).mean().iloc[-1])
+    prezzo = float(df['Close'].iloc[-1])
+
+    if prezzo >= mm200: return 100.0
+    elif prezzo >= mm100: return 80.0
+    elif prezzo >= mm50: return 40.0
+    elif prezzo >= mm20: return 20.0
+    elif prezzo >= mm9: return 20.0
+    else: return 0.0
+
+def calcola_score_intraday(df):
+    df = pulisci_colonne(df)
+    if df is None or len(df) < 50:
+        return 0.0
+    df = df.dropna(subset=['Close'])
+    n = len(df)
+    w9 = min(9, n // 5)
+    w20 = min(20, n // 3)
+    w50 = min(50, n // 2)
+    mm9 = float(df['Close'].rolling(window=w9).mean().iloc[-1])
+    mm20 = float(df['Close'].rolling(window=w20).mean().iloc[-1])
+    mm50 = float(df['Close'].rolling(window=50).mean().iloc[-1])
+    prezzo = float(df['Close'].iloc[-1])
+
+    if prezzo >= mm50: return 100.0
+    elif prezzo >= mm20: return 60.0
+    elif prezzo >= mm9: return 30.0
+    else: return 0.0
+
+# --- INTERFACCIA UTENTE MOBILE ---
+st.title("🎯 Chart Scout MIB")
+st.markdown("Plancia Tattica Operativa - Indice Completo (Weekly ➔ 15M)")
+
+if st.button("🚀 Esegui Scansione Intero Indice", use_container_width=True):
+    with st.spinner("Analisi di tutti i titoli del FTSE MIB in corso... (potrebbe richiedere qualche secondo)"):
+        report = []
+        for ticker in tickers:
+            ticker_pulito = ticker.replace('.MI', '')
+            risultati = {"Ticker": ticker_pulito}
+            try:
+                df_wk = yf.download(ticker, period="max", interval="1wk", progress=False)
+                risultati['Weekly'] = f"{int(calcola_score_macro(df_wk))}%"
+                
+                df_d = yf.download(ticker, period="max", interval="1.0d", progress=False) # standard 1d
+                # fix per intervallo giornaliero pulito
+                df_d = yf.download(ticker, period="max", interval="1d", progress=False)
+                risultati['Daily'] = f"{int(calcola_score_macro(df_d))}%"
+                
+                df_1h = yf.download(ticker, period="59d", interval="1h", progress=False)
+                if not df_1h.empty:
+                    df_1h = pulisci_colonne(df_1h)
+                    df_4h = df_1h.resample('4h').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
+                    risultati['4H'] = f"{int(calcola_score_intraday(df_4h))}%"
+                    risultati['1H'] = f"{int(calcola_score_intraday(df_1h))}%"
+                else:
+                    risultati['4H'] = "N/A"
+                    risultati['1H'] = "N/A"
+                    
+                df_15m = yf.download(ticker, period="59d", interval="15m", progress=False)
+                risultati['15M'] = f"{int(calcola_score_intraday(df_15m))}%"
+            except Exception:
+                pass
+            report.append(risultati)
+        
+        df_final = pd.DataFrame(report).set_index("Ticker")
+        
+        st.success("Scansione completata con successo!")
+        st.dataframe(df_final, use_container_width=True)
+else:
+    st.info("Ticca il pulsante sopra per avviare la scansione di tutto il paniere FTSE MIB.")
