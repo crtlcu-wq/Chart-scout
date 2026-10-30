@@ -13,11 +13,11 @@ st.set_page_config(
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-# Lista completa dei titoli del FTSE MIB (con G.MIL corretto per evitare conflitti USA)
+# Lista completa dei titoli del FTSE MIB (Generali risolto tramite ISIN per evitare il bug della singola lettera)
 tickers = [
     "A2A.MI", "AMP.MI", "AZM.MI", "BGN.MI", "BMED.MI", "BMPS.MI", "BAMI.MI", 
     "BPE.MI", "CPR.MI", "DIA.MI", "ENEL.MI", "ENI.MI", "ERG.MI", "RACE.MI", 
-    "REC.MI", "G.MIL", "HER.MI", "ISP.MI", "INW.MI", "IG.MI", "LDO.MI", 
+    "REC.MI", "IT0000062072.MI", "HER.MI", "ISP.MI", "INW.MI", "IG.MI", "LDO.MI", 
     "MB.MI", "MONC.MI", "NEXI.MI", "PIRC.MI", "PST.MI", "PRY.MI", "SPM.MI", 
     "SRG.MI", "STLAM.MI", "STM.MI", "TIT.MI", "TEN.MI", "TRN.MI", "UCG.MI", 
     "UNI.MI", "IVG.MI"
@@ -96,7 +96,12 @@ if st.button("🚀 Esegui Scansione Intero Indice", use_container_width=True):
     with st.spinner("Analisi di tutti i titoli del FTSE MIB in corso..."):
         report = []
         for ticker in tickers:
-            ticker_pulito = ticker.replace('.MI', '').replace('.MIL', '')
+            # Mostra 'G' pulito in tabella per Generali, rimuovi '.MI' per gli altri
+            if ticker == "IT0000062072.MI":
+                ticker_pulito = "G"
+            else:
+                ticker_pulito = ticker.replace('.MI', '')
+                
             risultati = {"Ticker": ticker_pulito}
             try:
                 # 1. Weekly
