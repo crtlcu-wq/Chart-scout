@@ -13,11 +13,11 @@ st.set_page_config(
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-# Lista completa dei titoli del FTSE MIB
+# Lista completa dei titoli del FTSE MIB (con G.MIL corretto per evitare conflitti USA)
 tickers = [
     "A2A.MI", "AMP.MI", "AZM.MI", "BGN.MI", "BMED.MI", "BMPS.MI", "BAMI.MI", 
     "BPE.MI", "CPR.MI", "DIA.MI", "ENEL.MI", "ENI.MI", "ERG.MI", "RACE.MI", 
-    "REC.MI", "G.MI", "HER.MI", "ISP.MI", "INW.MI", "IG.MI", "LDO.MI", 
+    "REC.MI", "G.MIL", "HER.MI", "ISP.MI", "INW.MI", "IG.MI", "LDO.MI", 
     "MB.MI", "MONC.MI", "NEXI.MI", "PIRC.MI", "PST.MI", "PRY.MI", "SPM.MI", 
     "SRG.MI", "STLAM.MI", "STM.MI", "TIT.MI", "TEN.MI", "TRN.MI", "UCG.MI", 
     "UNI.MI", "IVG.MI"
@@ -29,7 +29,7 @@ def pulisci_colonne(df):
     return df
 
 def scarica_storico(ticker, period, interval):
-    """Funzione sicura per evitare errori sui ticker a singola lettera (.MI)"""
+    """Funzione sicura per il download dei dati storici"""
     try:
         t = yf.Ticker(ticker)
         df = t.history(period=period, interval=interval, auto_adjust=True)
@@ -96,7 +96,7 @@ if st.button("🚀 Esegui Scansione Intero Indice", use_container_width=True):
     with st.spinner("Analisi di tutti i titoli del FTSE MIB in corso..."):
         report = []
         for ticker in tickers:
-            ticker_pulito = ticker.replace('.MI', '')
+            ticker_pulito = ticker.replace('.MI', '').replace('.MIL', '')
             risultati = {"Ticker": ticker_pulito}
             try:
                 # 1. Weekly
