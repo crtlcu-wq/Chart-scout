@@ -58,7 +58,7 @@ def calcola_score_intraday(df):
     w50 = min(50, n // 2)
     mm9 = float(df['Close'].rolling(window=w9).mean().iloc[-1])
     mm20 = float(df['Close'].rolling(window=w20).mean().iloc[-1])
-    mm50 = float(df['Close'].rolling(window=50).mean().iloc[-1])
+    mm50 = float(df['Close'].rolling(window=w50).mean().iloc[-1])
     prezzo = float(df['Close'].iloc[-1])
 
     if prezzo >= mm50: return 100.0
@@ -66,12 +66,26 @@ def calcola_score_intraday(df):
     elif prezzo >= mm9: return 30.0
     else: return 0.0
 
+def colora_celle(val):
+    """Evidenzia con colori immediati la percentuale di forza."""
+    if val == "100%":
+        return 'background-color: #1b5e20; color: white; font-weight: bold;'
+    elif val in ["80%", "60%"]:
+        return 'background-color: #2e7d32; color: white;'
+    elif val in ["40%", "30%"]:
+        return 'background-color: #fbc02d; color: black;'
+    elif val == "20%":
+        return 'background-color: #e65100; color: white;'
+    elif val == "0%":
+        return 'background-color: #b71c1c; color: white;'
+    return ''
+
 # --- INTERFACCIA UTENTE MOBILE ---
 st.title("🎯 Chart Scout MIB")
 st.markdown("Plancia Tattica Operativa - Indice Completo (Weekly ➔ 15M)")
 
 if st.button("🚀 Esegui Scansione Intero Indice", use_container_width=True):
-    with st.spinner("Analisi di tutti i titoli del FTSE MIB in corso... (potrebbe richiedere qualche secondo)"):
+    with st.spinner("Analisi di tutti i titoli del FTSE MIB in corso..."):
         report = []
         for ticker in tickers:
             ticker_pulito = ticker.replace('.MI', '')
@@ -80,8 +94,6 @@ if st.button("🚀 Esegui Scansione Intero Indice", use_container_width=True):
                 df_wk = yf.download(ticker, period="max", interval="1wk", progress=False)
                 risultati['Weekly'] = f"{int(calcola_score_macro(df_wk))}%"
                 
-                df_d = yf.download(ticker, period="max", interval="1.0d", progress=False) # standard 1d
-                # fix per intervallo giornaliero pulito
                 df_d = yf.download(ticker, period="max", interval="1d", progress=False)
                 risultati['Daily'] = f"{int(calcola_score_macro(df_d))}%"
                 
@@ -103,7 +115,11 @@ if st.button("🚀 Esegui Scansione Intero Indice", use_container_width=True):
         
         df_final = pd.DataFrame(report).set_index("Ticker")
         
+        # Applica la formattazione a colori alla tabella
+        df_styled = df_final.style.map(colora_celle)
+        
         st.success("Scansione completata con successo!")
-        st.dataframe(df_final, use_container_width=True)
+        st.dataframe(df_styled, use_container_width=True)
 else:
     st.info("Ticca il pulsante sopra per avviare la scansione di tutto il paniere FTSE MIB.")
+
