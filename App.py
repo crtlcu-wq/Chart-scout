@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import warnings
+import time
 
 # Configurazione della pagina ottimizzata per mobile
 st.set_page_config(
@@ -13,11 +14,11 @@ st.set_page_config(
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-# Lista completa dei titoli del FTSE MIB (Generali risolto tramite ISIN per evitare il bug della singola lettera)
+# Lista completa dei titoli del FTSE MIB
 tickers = [
     "A2A.MI", "AMP.MI", "AZM.MI", "BGN.MI", "BMED.MI", "BMPS.MI", "BAMI.MI", 
     "BPE.MI", "CPR.MI", "DIA.MI", "ENEL.MI", "ENI.MI", "ERG.MI", "RACE.MI", 
-    "REC.MI", "IT0000062072.MI", "HER.MI", "ISP.MI", "INW.MI", "IG.MI", "LDO.MI", 
+    "REC.MI", "G.MI", "HER.MI", "ISP.MI", "INW.MI", "IG.MI", "LDO.MI", 
     "MB.MI", "MONC.MI", "NEXI.MI", "PIRC.MI", "PST.MI", "PRY.MI", "SPM.MI", 
     "SRG.MI", "STLAM.MI", "STM.MI", "TIT.MI", "TEN.MI", "TRN.MI", "UCG.MI", 
     "UNI.MI", "IVG.MI"
@@ -29,8 +30,9 @@ def pulisci_colonne(df):
     return df
 
 def scarica_storico(ticker, period, interval):
-    """Funzione sicura per il download dei dati storici"""
+    """Funzione sicura con pausa anti-blocco per Yahoo Finance"""
     try:
+        time.sleep(0.15) # Pausa di sicurezza per non intasare le API
         t = yf.Ticker(ticker)
         df = t.history(period=period, interval=interval, auto_adjust=True)
         if df is not None and not df.empty:
@@ -67,7 +69,7 @@ def calcola_score_intraday(df):
     w50 = min(50, n // 2)
     mm9 = float(df['Close'].rolling(window=w9).mean().iloc[-1])
     mm20 = float(df['Close'].rolling(window=w20).mean().iloc[-1])
-    mm50 = float(df['Close'].rolling(window=w50).mean().iloc[-1])
+    mm50 = float(df['Close'].rolling(window=50).mean().iloc[-1])
     prezzo = float(df['Close'].iloc[-1])
 
     if prezzo >= mm50: return 100.0
@@ -93,15 +95,10 @@ st.title("🎯 Chart Scout MIB")
 st.markdown("Plancia Tattica Operativa - Indice Completo (Weekly ➔ 15M)")
 
 if st.button("🚀 Esegui Scansione Intero Indice", use_container_width=True):
-    with st.spinner("Analisi di tutti i titoli del FTSE MIB in corso..."):
+    with st.spinner("Analisi in corso (connessione stabilizzata al listino)..."):
         report = []
         for ticker in tickers:
-            # Mostra 'G' pulito in tabella per Generali, rimuovi '.MI' per gli altri
-            if ticker == "IT0000062072.MI":
-                ticker_pulito = "G"
-            else:
-                ticker_pulito = ticker.replace('.MI', '')
-                
+            ticker_pulito = ticker.replace('.MI', '')
             risultati = {"Ticker": ticker_pulito}
             try:
                 # 1. Weekly
