@@ -28,8 +28,18 @@ def pulisci_colonne(df):
         df.columns = df.columns.get_level_values(0)
     return df
 
+def scarica_storico(ticker, period, interval):
+    """Funzione sicura per evitare errori sui ticker a singola lettera (.MI)"""
+    try:
+        t = yf.Ticker(ticker)
+        df = t.history(period=period, interval=interval, auto_adjust=True)
+        if df is not None and not df.empty:
+            return pulisci_colonne(df)
+    except Exception:
+        pass
+    return pd.DataFrame()
+
 def calcola_score_macro(df):
-    df = pulisci_colonne(df)
     if df is None or len(df) < 200:
         return 0.0
     df = df.dropna(subset=['Close'])
@@ -48,7 +58,6 @@ def calcola_score_macro(df):
     else: return 0.0
 
 def calcola_score_intraday(df):
-    df = pulisci_colonne(df)
     if df is None or len(df) < 50:
         return 0.0
     df = df.dropna(subset=['Close'])
@@ -67,7 +76,6 @@ def calcola_score_intraday(df):
     else: return 0.0
 
 def colora_celle(val):
-    """Evidenzia con colori immediati la percentuale di forza."""
     if val == "100%":
         return 'background-color: #1b5e20; color: white; font-weight: bold;'
     elif val in ["80%", "60%"]:
@@ -91,15 +99,17 @@ if st.button("🚀 Esegui Scansione Intero Indice", use_container_width=True):
             ticker_pulito = ticker.replace('.MI', '')
             risultati = {"Ticker": ticker_pulito}
             try:
-                df_wk = yf.download(ticker, period="max", interval="1wk", progress=False)
+                # 1. Weekly
+                df_wk = scarica_storico(ticker, period="max", interval="1wk")
                 risultati['Weekly'] = f"{int(calcola_score_macro(df_wk))}%"
                 
-                df_d = yf.download(ticker, period="max", interval="1d", progress=False)
+                # 2. Daily
+                df_d = scarica_storico(ticker, period="max", interval="1d")
                 risultati['Daily'] = f"{int(calcola_score_macro(df_d))}%"
                 
-                df_1h = yf.download(ticker, period="59d", interval="1h", progress=False)
+                # 3. Intraday (1H per derivare 4H e 1H)
+                df_1h = scarica_storico(ticker, period="59d", interval="1h")
                 if not df_1h.empty:
-                    df_1h = pulisci_colonne(df_1h)
                     df_4h = df_1h.resample('4h').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
                     risultati['4H'] = f"{int(calcola_score_intraday(df_4h))}%"
                     risultati['1H'] = f"{int(calcola_score_intraday(df_1h))}%"
@@ -107,19 +117,18 @@ if st.button("🚀 Esegui Scansione Intero Indice", use_container_width=True):
                     risultati['4H'] = "N/A"
                     risultati['1H'] = "N/A"
                     
-                df_15m = yf.download(ticker, period="59d", interval="15m", progress=False)
+                # 4. 15M
+                df_15m = scarica_storico(ticker, period="59d", interval="15m")
                 risultati['15M'] = f"{int(calcola_score_intraday(df_15m))}%"
+                
             except Exception:
                 pass
             report.append(risultati)
         
         df_final = pd.DataFrame(report).set_index("Ticker")
-        
-        # Applica la formattazione a colori alla tabella
         df_styled = df_final.style.map(colora_celle)
         
         st.success("Scansione completata con successo!")
         st.dataframe(df_styled, use_container_width=True)
 else:
     st.info("Ticca il pulsante sopra per avviare la scansione di tutto il paniere FTSE MIB.")
-
