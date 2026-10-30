@@ -30,9 +30,9 @@ def pulisci_colonne(df):
     return df
 
 def scarica_storico(ticker, period, interval):
-    """Funzione sicura con pausa anti-blocco per Yahoo Finance"""
+    """Funzione sicura con pausa anti-blocco e gestione ticker a singola lettera"""
     try:
-        time.sleep(0.15) # Pausa di sicurezza per non intasare le API
+        time.sleep(0.12) # Pausa di sicurezza per Yahoo Finance
         t = yf.Ticker(ticker)
         df = t.history(period=period, interval=interval, auto_adjust=True)
         if df is not None and not df.empty:
@@ -60,16 +60,16 @@ def calcola_score_macro(df):
     else: return 0.0
 
 def calcola_score_intraday(df):
-    if df is None or len(df) < 50:
+    if df is None or len(df) < 20: # Soglia flessibile per intraday
         return 0.0
     df = df.dropna(subset=['Close'])
     n = len(df)
     w9 = min(9, n // 5)
     w20 = min(20, n // 3)
     w50 = min(50, n // 2)
-    mm9 = float(df['Close'].rolling(window=w9).mean().iloc[-1])
-    mm20 = float(df['Close'].rolling(window=w20).mean().iloc[-1])
-    mm50 = float(df['Close'].rolling(window=50).mean().iloc[-1])
+    mm9 = float(df['Close'].rolling(window=max(2, w9)).mean().iloc[-1])
+    mm20 = float(df['Close'].rolling(window=max(3, w20)).mean().iloc[-1])
+    mm50 = float(df['Close'].rolling(window=max(4, w50)).mean().iloc[-1])
     prezzo = float(df['Close'].iloc[-1])
 
     if prezzo >= mm50: return 100.0
@@ -95,22 +95,25 @@ st.title("🎯 Chart Scout MIB")
 st.markdown("Plancia Tattica Operativa - Indice Completo (Weekly ➔ 15M)")
 
 if st.button("🚀 Esegui Scansione Intero Indice", use_container_width=True):
-    with st.spinner("Analisi in corso (connessione stabilizzata al listino)..."):
+    with st.spinner("Analisi in corso con connessione ottimizzata..."):
         report = []
         for ticker in tickers:
             ticker_pulito = ticker.replace('.MI', '')
             risultati = {"Ticker": ticker_pulito}
             try:
+                # Gestione speciale per forzare il corretto recupero di Generali su Milano
+                fetch_ticker = "IT0000062072.MI" if ticker == "G.MI" else ticker
+
                 # 1. Weekly
-                df_wk = scarica_storico(ticker, period="max", interval="1wk")
+                df_wk = scarica_storico(fetch_ticker, period="max", interval="1wk")
                 risultati['Weekly'] = f"{int(calcola_score_macro(df_wk))}%"
                 
                 # 2. Daily
-                df_d = scarica_storico(ticker, period="max", interval="1d")
+                df_d = scarica_storico(fetch_ticker, period="max", interval="1d")
                 risultati['Daily'] = f"{int(calcola_score_macro(df_d))}%"
                 
-                # 3. Intraday (1H per derivare 4H e 1H)
-                df_1h = scarica_storico(ticker, period="59d", interval="1h")
+                # 3. Intraday (1H ridotto a 30d per stabilità)
+                df_1h = scarica_storico(fetch_ticker, period="30d", interval="1h")
                 if not df_1h.empty:
                     df_4h = df_1h.resample('4h').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
                     risultati['4H'] = f"{int(calcola_score_intraday(df_4h))}%"
@@ -119,8 +122,8 @@ if st.button("🚀 Esegui Scansione Intero Indice", use_container_width=True):
                     risultati['4H'] = "N/A"
                     risultati['1H'] = "N/A"
                     
-                # 4. 15M
-                df_15m = scarica_storico(ticker, period="59d", interval="15m")
+                # 4. 15M (ridotto a 30d per stabilità)
+                df_15m = scarica_storico(fetch_ticker, period="30d", interval="15m")
                 risultati['15M'] = f"{int(calcola_score_intraday(df_15m))}%"
                 
             except Exception:
